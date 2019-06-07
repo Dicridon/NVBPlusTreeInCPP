@@ -118,43 +118,52 @@ private:
     bpt_is_root(const PBPTNodePtr t) const;
 
     int
-    bpt_insert_key(PBPTNodePtr t, const std::string &key);
+    bpt_insert_key(pmem::obj::pool_base &pop,
+                   PBPTNodePtr t, const std::string &key);
 
     PBPTNodePtr
     bpt_check_redistribute(const PBPTNodePtr t) const noexcept;
 
     int
-    redistribute_leaf(PBPTLeafPtr leaf, const std::string &key);
+    redistribute_leaf(pmem::obj::pool_base &pop,
+                      PBPTLeafPtr leaf, const std::string &key);
     
     int
-    redistribute_internal(std::string &split_key,
+    redistribute_internal(const std::string &split_key,
                           PBPTNonLeafPtr node,
                           PBPTNonLeafPtr left, PBPTNonLeafPtr right);
     
     PBPTNodePtr
-    merge_leaves(PBPTLeafPtr leaf, const std::string &key);
+    merge_leaves(pmem::obj::pool_base &pop,
+                 PBPTLeafPtr leaf, const std::string &key);
     
     int
-    merge_internal(PBPTNonLeafPtr parent, std::string &split_key);
+    merge_internal(pmem::obj::pool_base &pop,
+                   PBPTNonLeafPtr parent, const std::string &split_key);
 
     // split key may be changed
     int
-    merge(PBPTNonLeafPtr parent, const std::string &key, std::string &split_key);
+    merge(pmem::obj::pool_base &pop,
+          PBPTNonLeafPtr parent, const std::string &key,
+          const std::string &split_key);
     
     int
-    bpt_remove_key_and_data(PBPTLeafPtr node, const std::string &key);
+    bpt_remove_key_and_data(pmem::obj::pool_base &pop,
+                            PBPTLeafPtr node, const std::string &key);
     
     int
-    bpt_complex_delete(PBPTLeafPtr leaf, const std::string &key);
+    bpt_complex_delete(pmem::obj::pool_base &pop,
+                       PBPTLeafPtr leaf, const std::string &key);
     
     int
-    bpt_simple_delete(PBPTLeafPtr leaf, const std::string &key);
+    bpt_simple_delete(pmem::obj::pool_base &pop,
+                      PBPTLeafPtr leaf, const std::string &key);
     
     void
-    bpt_free_leaf(PBPTLeafPtr leaf);
+    bpt_free_leaf(pmem::obj::pool_base &pop, PBPTLeafPtr leaf);
     
     void
-    bpt_free_non_leaf(PBPTNonLeafPtr nleaf);
+    bpt_free_non_leaf(pmem::obj::pool_base &pop, PBPTNonLeafPtr nleaf);
     
 public:
     BPlusTree(pmem::obj::pool_base &pop);
@@ -173,7 +182,7 @@ public:
                const std::string &key, const std::string &value) noexcept;
 
     int
-    bpt_delete(const std::string &key);
+    bpt_delete(pmem::obj::pool_base &pop, const std::string &key);
 
     int
     bpt_get(const std::string &key, std::string &buffer)const noexcept;
@@ -184,7 +193,7 @@ public:
               std::string buffer[]) const noexcept;
 
     int
-    bpt_destroy() noexcept;
+    bpt_destroy(pmem::obj::pool_base &pop);
 
     void
     bpt_print() const noexcept;

@@ -4,13 +4,8 @@
   !!!!       THIS IS JUST FOR TEST
   !!!!!!!!!!!!!!
 */
-
-#include <string.h>
-#include <errno.h>
-#include <stdbool.h>
-#include <stdio.h>
+#include <cstdio>
 #include <queue>
-#include "list.hpp"
 #include "bplustree.hpp"
 #include "common.hpp"
 
@@ -300,6 +295,9 @@ BPlusTree::bpt_complex_insert(pmem::obj::pool_base &pop,
 int
 BPlusTree::bpt_get(const std::string &key, std::string &buffer) const noexcept
 {
+    if (root == nullptr)
+        return -1;
+    
     auto walk = root;
     unsigned long long i = 0;
     while(walk->type != LEAF) {
@@ -354,8 +352,8 @@ BPlusTree::bpt_range_test(const std::string &start, long n) const noexcept
             if (*leaf->keys[i] > "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")
                 return 1;
 
-            if (*leaf->keys[i] >= start)
-                std::cout << *leaf->keys[i] << ", ";
+            // if (*leaf->keys[i] >= start)
+            //     std::cout << *leaf->keys[i] << ", ";
             
             if (*leaf->keys[i] >= start)
                 n--;
@@ -366,7 +364,7 @@ BPlusTree::bpt_range_test(const std::string &start, long n) const noexcept
 }
 
 int
-BPlusTree::bpt_destroy() noexcept
+BPlusTree::bpt_destroy(pmem::obj::pool_base &pop)
 {
     if (!root) {
         printf("empty tree\n");
@@ -385,12 +383,14 @@ BPlusTree::bpt_destroy() noexcept
         }
 
         if (walk->type == LEAF) {
-            for (unsigned long long i = 0; i < walk->num_of_keys; i++) { 
-                pmem::obj::delete_persistent<std::string>(walk->keys[i]);
-                pmem::obj::delete_persistent<std::string>(static_cast<PBPTLeafPtr>(walk)->data[i]);
-            }
+            transaction::run(pop, [&] {
+                    for (unsigned long long i = 0; i < walk->num_of_keys; i++) { 
+                        pmem::obj::delete_persistent<std::string>(walk->keys[i]);
+                        pmem::obj::delete_persistent<std::string>(static_cast<PBPTLeafPtr>(walk)->data[i]);
+                    }
+                    pmem::obj::delete_persistent<bpt_node_t>(walk);
+                });
         }
-        pmem::obj::delete_persistent<bpt_node_t>(walk);
     }
     return 1;
 }
@@ -458,15 +458,20 @@ BPlusTree::bpt_insert(pmem::obj::pool_base &pop,
 
 // ensure leaf has no data at all before calling this function
 void
-BPlusTree::bpt_free_leaf(PBPTLeafPtr leaf)
+BPlusTree::bpt_free_leaf(pmem::obj::pool_base &pop, PBPTLeafPtr leaf)
 {
-    pmem::obj::delete_persistent<bpt_leaf_t>(leaf);
+    transaction::run(pop, [&] {
+            pmem::obj::delete_persistent<bpt_leaf_t>(leaf);            
+        });
+
 }
 
 void
-BPlusTree::bpt_free_non_leaf(PBPTNonLeafPtr nleaf)
+BPlusTree::bpt_free_non_leaf(pmem::obj::pool_base &pop, PBPTNonLeafPtr nleaf)
 {
-    pmem::obj::delete_persistent<bpt_non_leaf_t>(nleaf);
+    transaction::run(pop, [&] {
+            pmem::obj::delete_persistent<bpt_non_leaf_t>(nleaf);            
+        });
 }
 
 void
@@ -536,7 +541,8 @@ BPlusTree::bpt_is_root(const PBPTNodePtr t) const
 }
 
 int
-BPlusTree::bpt_remove_key_and_data(PBPTLeafPtr node, const std::string &key)
+BPlusTree::bpt_remove_key_and_data(pmem::obj::pool_base &pop,
+                                   PBPTLeafPtr node, const std::string &key)
 {
     unsigned long long i = 0;
     for (i = 0; i < node->num_of_keys; i++) {
@@ -549,11 +555,14 @@ BPlusTree::bpt_remove_key_and_data(PBPTLeafPtr node, const std::string &key)
         node->data[i] = node->data[i + 1];
     }
 
-    node->num_of_keys = node->num_of_keys - 1;
-    pmem::obj::delete_persistent<std::string>(node->keys[node->num_of_keys]);
-    pmem::obj::delete_persistent<std::string>(node->data[node->num_of_keys]);
-    node->keys[node->num_of_keys] = nullptr;
-    node->data[node->num_of_keys] = nullptr;
+    transaction::run(pop, [&] {
+            node->num_of_keys = node->num_of_keys - 1;
+            pmem::obj::delete_persistent<std::string>(node->keys[node->num_of_keys]);
+            pmem::obj::delete_persistent<std::string>(node->data[node->num_of_keys]);
+            node->keys[node->num_of_keys] = nullptr;
+            node->data[node->num_of_keys] = nullptr;            
+        });
+
     return 1;
 }
 
@@ -586,7 +595,8 @@ BPlusTree::bpt_check_redistribute(const PBPTNodePtr t) const noexcept
 // redistribute leaf nodes, not internal nodes
 
 int
-BPlusTree::redistribute_leaf(PBPTLeafPtr leaf, const std::string &key)
+BPlusTree::redistribute_leaf(pmem::obj::pool_base &pop,
+                             PBPTLeafPtr leaf, const std::string &key)
 {
     auto parent = leaf->parent;
     auto non_leaf = find_non_leaf(key);
@@ -603,7 +613,6 @@ BPlusTree::redistribute_leaf(PBPTLeafPtr leaf, const std::string &key)
         }
 
     }
-
     
     for (i = 0; i < parent->num_of_children; i++)
         if (parent->children[i] == leaf){
@@ -624,8 +633,11 @@ BPlusTree::redistribute_leaf(PBPTLeafPtr leaf, const std::string &key)
         
         for (i = 0; i < leaf->num_of_keys; i++) {
             if (*leaf->keys[i] == key) {
-                pmem::obj::delete_persistent<std::string>(leaf->keys[i]);
-                pmem::obj::delete_persistent<std::string>(leaf->data[i]);
+                transaction::run(pop, [&] {
+                        pmem::obj::delete_persistent<std::string>(leaf->keys[i]);
+                        pmem::obj::delete_persistent<std::string>(leaf->data[i]);
+                    });
+
                 for (; i > 0; i--) {
                     leaf->keys[i] = leaf->keys[i-1];
                     leaf->data[i] = leaf->data[i-1];
@@ -645,8 +657,11 @@ BPlusTree::redistribute_leaf(PBPTLeafPtr leaf, const std::string &key)
         unsigned long long tail = leaf->num_of_keys - 1;
         for (i = 0; i < leaf->num_of_keys; i++) {
             if (*leaf->keys[i] == key) {
-                pmem::obj::delete_persistent<std::string>(leaf->keys[i]);
-                pmem::obj::delete_persistent<std::string>(leaf->data[i]);
+                transaction::run(pop, [&] {
+                        pmem::obj::delete_persistent<std::string>(leaf->keys[i]);
+                        pmem::obj::delete_persistent<std::string>(leaf->data[i]);
+                    });
+
                 for (; i < leaf->num_of_keys - 1; i++) {
                     leaf->keys[i] = leaf->keys[i+1];
                     leaf->data[i] = leaf->data[i+1];
@@ -676,7 +691,8 @@ BPlusTree::redistribute_leaf(PBPTLeafPtr leaf, const std::string &key)
 
 
 int
-BPlusTree::bpt_simple_delete(PBPTLeafPtr leaf, const std::string &key)
+BPlusTree::bpt_simple_delete(pmem::obj::pool_base &pop,
+                             PBPTLeafPtr leaf, const std::string &key)
 {
     if (!bpt_is_root(leaf)) {
         // this branch will be executed only when deletin takes place on a
@@ -689,13 +705,13 @@ BPlusTree::bpt_simple_delete(PBPTLeafPtr leaf, const std::string &key)
                     break;
                 }
         }
-        bpt_remove_key_and_data(leaf, key);
+        bpt_remove_key_and_data(pop, leaf, key);
         // replace the key
         if (non_leaf)
             non_leaf->keys[i] = leaf->keys[0];
         return 1;
     } else
-        return bpt_remove_key_and_data(leaf, key);
+        return bpt_remove_key_and_data(pop, leaf, key);
 }
 
 
@@ -703,7 +719,8 @@ BPlusTree::bpt_simple_delete(PBPTLeafPtr leaf, const std::string &key)
 // only used to merge leaves
 
 PBPTNodePtr
-BPlusTree::merge_leaves(PBPTLeafPtr leaf, const std::string &key)
+BPlusTree::merge_leaves(pmem::obj::pool_base &pop,
+                        PBPTLeafPtr leaf, const std::string &key)
 {
     auto parent = leaf->parent;
     unsigned long long i;
@@ -716,7 +733,10 @@ BPlusTree::merge_leaves(PBPTLeafPtr leaf, const std::string &key)
     }
 
     free_key = leaf->keys[i];
-    pmem::obj::delete_persistent<std::string>(leaf->data[i]);
+    transaction::run(pop, [&] {
+            pmem::obj::delete_persistent<std::string>(leaf->data[i]);            
+        });
+
     
     for (unsigned long long j = i; j <= leaf->num_of_keys - 1; j++) {
         leaf->keys[j] = leaf->keys[j+1];
@@ -760,7 +780,7 @@ BPlusTree::merge_leaves(PBPTLeafPtr leaf, const std::string &key)
         leaf->prev->next = leaf->next;
         leaf->next->prev = leaf->prev;
         left->num_of_keys = left->num_of_keys + leaf->num_of_keys;
-        bpt_free_leaf(leaf);
+        bpt_free_leaf(pop, leaf);
         rev = left;
     } else {
         // merge leaf into its right sibling
@@ -779,7 +799,7 @@ BPlusTree::merge_leaves(PBPTLeafPtr leaf, const std::string &key)
         right->next->prev =right->prev;
         parent->children[idx_right] = leaf;
         leaf->num_of_keys = leaf->num_of_keys + right->num_of_keys;
-        bpt_free_leaf(right);
+        bpt_free_leaf(pop, right);
         rev = leaf;
     }
     
@@ -794,7 +814,8 @@ BPlusTree::merge_leaves(PBPTLeafPtr leaf, const std::string &key)
 
 
 int
-BPlusTree::bpt_insert_key(PBPTNodePtr t, const std::string &key)
+BPlusTree::bpt_insert_key(pmem::obj::pool_base &pop,
+                          PBPTNodePtr t, const std::string &key)
 {
     unsigned long long i = 0;
     for (i = 0; i < t->num_of_keys; i++) {
@@ -808,14 +829,17 @@ BPlusTree::bpt_insert_key(PBPTNodePtr t, const std::string &key)
     for (unsigned long long j = t->num_of_keys; j > i; j--) {
         t->keys[j] = t->keys[j-1];
     }
-    *t->keys[i] = key;
+    transaction::run(pop, [&] {
+            t->keys[i] = pmem::obj::make_persistent<std::string>(key);
+        });
+
     t->num_of_keys = t->num_of_keys + 1;
     return 1;
 }
 
 
 int
-BPlusTree::redistribute_internal(std::string &split_key,
+BPlusTree::redistribute_internal(const std::string &split_key,
                                  PBPTNonLeafPtr node,
                                  PBPTNonLeafPtr left, PBPTNonLeafPtr right)
 {
@@ -835,9 +859,9 @@ BPlusTree::redistribute_internal(std::string &split_key,
     }
     
     if (!left && right->num_of_keys > degree / 2) {
-        *node->keys[node->num_of_keys + 1] = split_key;
+        *node->keys[node->num_of_keys] = split_key;
         node->num_of_keys = node->num_of_keys + 1;
-        node->children[node->num_of_children + 1] = right->children[0];
+        node->children[node->num_of_children] = right->children[0];
         node->num_of_children = node->num_of_children + 1;
         right->children[0]->parent = node;
         parent->keys[split] = right->keys[0];
@@ -868,10 +892,10 @@ BPlusTree::redistribute_internal(std::string &split_key,
         left->num_of_keys = left->num_of_keys - 1;
     } else if (left->num_of_keys > degree/2 && right->num_of_keys > degree/2) {
         // borrow from right
-        node->children[node->num_of_children + 1] = right->children[0];
+        node->children[node->num_of_children] = right->children[0];
         node->num_of_children = node->num_of_children + 1;
         right->children[0]->parent = node;
-        *node->keys[node->num_of_keys + 1] = split_key;
+        *node->keys[node->num_of_keys] = split_key;
         node->num_of_keys = node->num_of_keys + 1;
         parent->keys[split] = right->keys[0];
         for (j = 0; j <= right->num_of_keys - 1; j++) {
@@ -888,7 +912,8 @@ BPlusTree::redistribute_internal(std::string &split_key,
 }
 
 int
-BPlusTree::merge_internal(PBPTNonLeafPtr parent, std::string &split_key)
+BPlusTree::merge_internal(pmem::obj::pool_base &pop,
+                          PBPTNonLeafPtr parent, const std::string &split_key)
 {
     // merge parent into a proper sibling, incorporating a split key from parent
     // of parent which seperate this parent and the sibling
@@ -932,13 +957,13 @@ BPlusTree::merge_internal(PBPTNonLeafPtr parent, std::string &split_key)
     // and notice we have to change our split key
     if (!left && !right) {  // merge is impossible
         if (left_available) {
-            split_key = *grandparent->keys[i-1];
-            redistribute_internal(split_key, parent,
+            auto a_split_key = *grandparent->keys[i-1];
+            redistribute_internal(a_split_key, parent,
                                   grandparent->children[idx_left], nullptr);
         }
         else {
-            split_key = *grandparent->keys[i];
-            redistribute_internal(split_key, parent, nullptr,
+            auto a_split_key = *grandparent->keys[i];
+            redistribute_internal(a_split_key, parent, nullptr,
                                   grandparent->children[idx_right]);
         }
         return 1;
@@ -961,8 +986,8 @@ BPlusTree::merge_internal(PBPTNonLeafPtr parent, std::string &split_key)
         left->num_of_keys = left->num_of_keys + parent->num_of_keys;
         left->num_of_children = left->num_of_children + parent->num_of_children;
         
-        bpt_free_non_leaf(parent);
-        bpt_insert_key(left, split_key);
+        bpt_free_non_leaf(pop, parent);
+        bpt_insert_key(pop, left, split_key);
         merged = left;
     } else {
         for (i = 0; i < right->num_of_keys; i++) {
@@ -981,14 +1006,14 @@ BPlusTree::merge_internal(PBPTNonLeafPtr parent, std::string &split_key)
         parent->num_of_children =
             parent->num_of_children + right->num_of_children;
 
-        bpt_free_non_leaf(right);
+        bpt_free_non_leaf(pop, right);
         grandparent->children[idx_right] = parent;
-        bpt_insert_key(parent, split_key);
+        bpt_insert_key(pop, parent, split_key);
         merged = parent;
     }
 
     if (bpt_is_root(grandparent) && grandparent->num_of_keys == 1) {
-        bpt_free_non_leaf(grandparent);
+        bpt_free_non_leaf(pop, grandparent);
         root = merged;
         merged->parent = nullptr;
         return 1;
@@ -1006,8 +1031,9 @@ BPlusTree::merge_internal(PBPTNonLeafPtr parent, std::string &split_key)
 
 
 int
-BPlusTree::merge(PBPTNonLeafPtr parent,
-                 const std::string &key, std::string &split_key)
+BPlusTree::merge(pmem::obj::pool_base &pop,
+                 PBPTNonLeafPtr parent,
+                 const std::string &key, const std::string &split_key)
 {
     // remove the split key
     unsigned long long i = 0;
@@ -1030,7 +1056,7 @@ BPlusTree::merge(PBPTNonLeafPtr parent,
     if (bpt_is_root(parent) && num_of_keys == 0) {
         root = parent->children[0];
         parent->children[0]->parent = nullptr;
-        bpt_free_non_leaf(parent);
+        bpt_free_non_leaf(pop, parent);
         return 1;
     }
     // now we have to find a split key for parent
@@ -1056,12 +1082,12 @@ BPlusTree::merge(PBPTNonLeafPtr parent,
         split = i -1;
     }
 
-    split_key = *grandparent->keys[split];
+    auto a_split_key = *grandparent->keys[split];
 
     // 1 means everything is done, no more recursion
-    if (merge_internal(parent, split_key) == 1)
+    if (merge_internal(pop, parent, a_split_key) == 1)
         return 1;
-    merge(grandparent, key, split_key);
+    merge(pop, grandparent, key, a_split_key);
     return 1;
 }
 
@@ -1082,7 +1108,8 @@ BPlusTree::merge(PBPTNonLeafPtr parent,
  */
 
 int
-BPlusTree::bpt_complex_delete(PBPTLeafPtr leaf, const std::string &key)
+BPlusTree::bpt_complex_delete(pmem::obj::pool_base &pop,
+                              PBPTLeafPtr leaf, const std::string &key)
 {
     // find internal node which contains the keys to be deleted
     auto non_leaf = find_non_leaf(key);
@@ -1098,7 +1125,7 @@ BPlusTree::bpt_complex_delete(PBPTLeafPtr leaf, const std::string &key)
 
 
     // merge
-    auto merged = merge_leaves(leaf, key);
+    auto merged = merge_leaves(pop, leaf, key);
     
     // replace the key
     auto replace_key = merged->keys[0];
@@ -1110,15 +1137,18 @@ BPlusTree::bpt_complex_delete(PBPTLeafPtr leaf, const std::string &key)
             }
     }
     std::string split_key = *parent->keys[split];
-    merge(parent, key, split_key);
-    pmem::obj::delete_persistent<std::string>(free_key);
-    free_key = nullptr;
+    merge(pop, parent, key, split_key);
+    transaction::run(pop, [&] {
+            pmem::obj::delete_persistent<std::string>(free_key);
+            free_key = nullptr;
+        });
+
     return 1;
 }
 
 
 int
-BPlusTree::bpt_delete(const std::string &key)
+BPlusTree::bpt_delete(pmem::obj::pool_base &pop, const std::string &key)
 {
     if (!root)
         return 1;
@@ -1134,11 +1164,11 @@ BPlusTree::bpt_delete(const std::string &key)
     
     auto parent = leaf->parent;
     if (leaf->num_of_keys > degree / 2 || bpt_is_root(leaf)) {
-        bpt_simple_delete(leaf, key);
+        bpt_simple_delete(pop, leaf, key);
 
         // tree is destroyed
         if (leaf->num_of_keys == 0) {
-            bpt_free_leaf(leaf);
+            bpt_free_leaf(pop, leaf);
             root = nullptr;
         }
 
@@ -1155,11 +1185,11 @@ BPlusTree::bpt_delete(const std::string &key)
         // if one of leaf's nearest siblings has enough keys to share
         // borrow a key from this sibling
         if (bpt_check_redistribute(leaf))
-            return redistribute_leaf(leaf, key);
+            return redistribute_leaf(pop, leaf, key);
         else
             // no sibling can offer us a key
             // merge is required
-            return bpt_complex_delete(leaf, key);
+            return bpt_complex_delete(pop, leaf, key);
     }
     return 1;
 }
