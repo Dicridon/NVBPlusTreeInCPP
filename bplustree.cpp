@@ -815,23 +815,22 @@ BPlusTree::merge_leaves(pmem::obj::pool_base &pop,
 
 int
 BPlusTree::bpt_insert_key(pmem::obj::pool_base &pop,
-                          PBPTNodePtr t, const std::string &key)
+                          PBPTNodePtr t, PStringPtr key)
 {
     unsigned long long i = 0;
     for (i = 0; i < t->num_of_keys; i++) {
-        if (*t->keys[i] == key)
+        if (*t->keys[i] == *key)
             return 1;
 
-        if (*t->keys[i] > key)
+        if (*t->keys[i] > *key)
             break;
     }
 
     for (unsigned long long j = t->num_of_keys; j > i; j--) {
         t->keys[j] = t->keys[j-1];
     }
-    transaction::run(pop, [&] {
-            t->keys[i] = pmem::obj::make_persistent<std::string>(key);
-        });
+
+    t->keys[i] = key;
 
     t->num_of_keys = t->num_of_keys + 1;
     return 1;
@@ -839,7 +838,7 @@ BPlusTree::bpt_insert_key(pmem::obj::pool_base &pop,
 
 
 int
-BPlusTree::redistribute_internal(const std::string &split_key,
+BPlusTree::redistribute_internal(PStringPtr split_key,
                                  PBPTNonLeafPtr node,
                                  PBPTNonLeafPtr left, PBPTNonLeafPtr right)
 {
@@ -849,7 +848,7 @@ BPlusTree::redistribute_internal(const std::string &split_key,
     unsigned long long j = 0;
     unsigned long long split = 0;
     for (split = 0; split < parent->num_of_keys; split++) {
-        if (*parent->keys[split] == split_key)
+        if (parent->keys[split] == split_key)
             break;
     }
 
@@ -859,7 +858,7 @@ BPlusTree::redistribute_internal(const std::string &split_key,
     }
     
     if (!left && right->num_of_keys > degree / 2) {
-        *node->keys[node->num_of_keys] = split_key;
+        node->keys[node->num_of_keys] = split_key;
         node->num_of_keys = node->num_of_keys + 1;
         node->children[node->num_of_children] = right->children[0];
         node->num_of_children = node->num_of_children + 1;
@@ -880,7 +879,7 @@ BPlusTree::redistribute_internal(const std::string &split_key,
             node->keys[j] = node->keys[j-1];
             node->children[j] = node->children[j-1];
         }
-        *node->keys[0] = split_key;
+        node->keys[0] = split_key;
         node->children[0] = left->children[left->num_of_children-1];
         left->children[left->num_of_children-1]->parent = node;
         parent->keys[split] = left->keys[left->num_of_keys-1];
@@ -895,7 +894,7 @@ BPlusTree::redistribute_internal(const std::string &split_key,
         node->children[node->num_of_children] = right->children[0];
         node->num_of_children = node->num_of_children + 1;
         right->children[0]->parent = node;
-        *node->keys[node->num_of_keys] = split_key;
+        node->keys[node->num_of_keys] = split_key;
         node->num_of_keys = node->num_of_keys + 1;
         parent->keys[split] = right->keys[0];
         for (j = 0; j <= right->num_of_keys - 1; j++) {
@@ -913,7 +912,7 @@ BPlusTree::redistribute_internal(const std::string &split_key,
 
 int
 BPlusTree::merge_internal(pmem::obj::pool_base &pop,
-                          PBPTNonLeafPtr parent, const std::string &split_key)
+                          PBPTNonLeafPtr parent, PStringPtr split_key)
 {
     // merge parent into a proper sibling, incorporating a split key from parent
     // of parent which seperate this parent and the sibling
@@ -957,13 +956,13 @@ BPlusTree::merge_internal(pmem::obj::pool_base &pop,
     // and notice we have to change our split key
     if (!left && !right) {  // merge is impossible
         if (left_available) {
-            auto a_split_key = *grandparent->keys[i-1];
-            redistribute_internal(a_split_key, parent,
+            split_key = grandparent->keys[i-1];
+            redistribute_internal(split_key, parent,
                                   grandparent->children[idx_left], nullptr);
         }
         else {
-            auto a_split_key = *grandparent->keys[i];
-            redistribute_internal(a_split_key, parent, nullptr,
+            split_key = grandparent->keys[i];
+            redistribute_internal(split_key, parent, nullptr,
                                   grandparent->children[idx_right]);
         }
         return 1;
@@ -1033,12 +1032,12 @@ BPlusTree::merge_internal(pmem::obj::pool_base &pop,
 int
 BPlusTree::merge(pmem::obj::pool_base &pop,
                  PBPTNonLeafPtr parent,
-                 const std::string &key, const std::string &split_key)
+                 const std::string &key, PStringPtr split_key)
 {
     // remove the split key
     unsigned long long i = 0;
     for (i = 0; i < parent->num_of_keys; i++) {
-        if (*parent->keys[i] == split_key) {
+        if (parent->keys[i] == split_key) {
             unsigned long long j = 0;
             for (j = i; j <= parent->num_of_keys - 1; j++) {
                 parent->keys[j] = parent->keys[j+1];
@@ -1082,12 +1081,12 @@ BPlusTree::merge(pmem::obj::pool_base &pop,
         split = i -1;
     }
 
-    auto a_split_key = *grandparent->keys[split];
+    split_key = grandparent->keys[split];
 
     // 1 means everything is done, no more recursion
-    if (merge_internal(pop, parent, a_split_key) == 1)
+    if (merge_internal(pop, parent, split_key) == 1)
         return 1;
-    merge(pop, grandparent, key, a_split_key);
+    merge(pop, grandparent, key, split_key);
     return 1;
 }
 
@@ -1136,7 +1135,7 @@ BPlusTree::bpt_complex_delete(pmem::obj::pool_base &pop,
                 break;
             }
     }
-    std::string split_key = *parent->keys[split];
+    auto split_key = parent->keys[split];
     merge(pop, parent, key, split_key);
     transaction::run(pop, [&] {
             pmem::obj::delete_persistent<std::string>(free_key);

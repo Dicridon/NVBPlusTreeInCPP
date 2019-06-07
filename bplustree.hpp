@@ -1,5 +1,5 @@
-#ifndef __FROST_BPTREE__
-#define __FROST_BPTREE__
+#ifndef __FROST_BPTREE_OBJPP__
+#define __FROST_BPTREE_OBJPP__
 /*
   This code is adopted from a C version, further modification may be required
  */
@@ -119,7 +119,7 @@ private:
 
     int
     bpt_insert_key(pmem::obj::pool_base &pop,
-                   PBPTNodePtr t, const std::string &key);
+                   PBPTNodePtr t, PStringPtr key);
 
     PBPTNodePtr
     bpt_check_redistribute(const PBPTNodePtr t) const noexcept;
@@ -129,7 +129,7 @@ private:
                       PBPTLeafPtr leaf, const std::string &key);
     
     int
-    redistribute_internal(const std::string &split_key,
+    redistribute_internal(PStringPtr split_key,
                           PBPTNonLeafPtr node,
                           PBPTNonLeafPtr left, PBPTNonLeafPtr right);
     
@@ -139,13 +139,13 @@ private:
     
     int
     merge_internal(pmem::obj::pool_base &pop,
-                   PBPTNonLeafPtr parent, const std::string &split_key);
+                   PBPTNonLeafPtr parent, PStringPtr split_key);
 
     // split key may be changed
     int
     merge(pmem::obj::pool_base &pop,
           PBPTNonLeafPtr parent, const std::string &key,
-          const std::string &split_key);
+          PStringPtr split_key);
     
     int
     bpt_remove_key_and_data(pmem::obj::pool_base &pop,
