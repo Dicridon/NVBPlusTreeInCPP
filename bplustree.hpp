@@ -2,10 +2,9 @@
 #define __FROST_BPTREE_OBJPP__
 /*
   This code is adopted from a C version, further modification may be required
- */
+*/
 #include <iostream>
 #include "common.hpp"
-#include "list.hpp"
 #include <string>
 
 
@@ -83,29 +82,29 @@ private:
 private:
     // insertion helpers
     PBPTLeafPtr
-    bpt_new_leaf(pmem::obj::pool_base &pop);
+    new_leaf(pmem::obj::pool_base &pop);
 
     PBPTNonLeafPtr
-    bpt_new_non_leaf(pmem::obj::pool_base &pop);
+    new_non_leaf(pmem::obj::pool_base &pop);
 
     void
-    bpt_insert_child(PBPTNonLeafPtr old, PBPTNodePtr neo);
+    insert_child(PBPTNonLeafPtr old, PBPTNodePtr neo);
 
     int
-    bpt_complex_insert(pmem::obj::pool_base &pop,
-                       PBPTLeafPtr leaf,
-                       const std::string &key,
-                       const std::string &value);
+    complex_insert(pmem::obj::pool_base &pop,
+                   PBPTLeafPtr leaf,
+                   const std::string &key,
+                   const std::string &value);
 
     int
-    bpt_simple_insert(pmem::obj::pool_base &pop,
-                      PBPTLeafPtr leaf,
-                      const std::string &key,
-                      const std::string &value);
+    simple_insert(pmem::obj::pool_base &pop,
+                  PBPTLeafPtr leaf,
+                  const std::string &key,
+                  const std::string &value);
 
     int
-    bpt_insert_adjust(pmem::obj::pool_base &pop,
-                      PBPTNodePtr old, PBPTNodePtr neo);
+    insert_adjust(pmem::obj::pool_base &pop,
+                  PBPTNodePtr old, PBPTNodePtr neo);
 
     PBPTLeafPtr
     find_leaf(const std::string &key) const noexcept;
@@ -115,14 +114,13 @@ private:
 
     // deletion helpers
     inline bool
-    bpt_is_root(const PBPTNodePtr t) const;
+    is_root(const PBPTNodePtr t) const;
 
     int
-    bpt_insert_key(pmem::obj::pool_base &pop,
-                   PBPTNodePtr t, PStringPtr key);
+    insert_key(PBPTNodePtr t, PStringPtr key);
 
     PBPTNodePtr
-    bpt_check_redistribute(const PBPTNodePtr t) const noexcept;
+    check_redistribute(const PBPTNodePtr t) const noexcept;
 
     int
     redistribute_leaf(pmem::obj::pool_base &pop,
@@ -148,22 +146,22 @@ private:
           PStringPtr split_key);
     
     int
-    bpt_remove_key_and_data(pmem::obj::pool_base &pop,
-                            PBPTLeafPtr node, const std::string &key);
+    remove_key_and_data(pmem::obj::pool_base &pop,
+                        PBPTLeafPtr node, const std::string &key);
     
     int
-    bpt_complex_delete(pmem::obj::pool_base &pop,
-                       PBPTLeafPtr leaf, const std::string &key);
+    complex_delete(pmem::obj::pool_base &pop,
+                   PBPTLeafPtr leaf, const std::string &key);
     
     int
-    bpt_simple_delete(pmem::obj::pool_base &pop,
-                      PBPTLeafPtr leaf, const std::string &key);
+    simple_delete(pmem::obj::pool_base &pop,
+                  PBPTLeafPtr leaf, const std::string &key);
     
     void
-    bpt_free_leaf(pmem::obj::pool_base &pop, PBPTLeafPtr leaf);
+    free_leaf(pmem::obj::pool_base &pop, PBPTLeafPtr leaf);
     
     void
-    bpt_free_non_leaf(pmem::obj::pool_base &pop, PBPTNonLeafPtr nleaf);
+    free_non_leaf(pmem::obj::pool_base &pop, PBPTNonLeafPtr nleaf);
     
 public:
     BPlusTree(pmem::obj::pool_base &pop);
@@ -178,31 +176,30 @@ public:
     bool empty() const noexcept {return root == nullptr;}
 
     int
-    bpt_insert(pmem::obj::pool_base &pop,
-               const std::string &key, const std::string &value) noexcept;
+    insert(pmem::obj::pool_base &pop,
+           const std::string &key, const std::string &value) noexcept;
 
     int
-    bpt_delete(pmem::obj::pool_base &pop, const std::string &key);
+    delete_key(pmem::obj::pool_base &pop, const std::string &key);
 
     int
-    bpt_get(const std::string &key, std::string &buffer)const noexcept;
+    get_value(const std::string &key, std::string &buffer)const noexcept;
 
     int
-    bpt_range(const std::string &start,
-              const std::string &end,
-              std::string buffer[]) const noexcept;
+    range(const std::string &start,
+          const std::string &end,
+          std::string buffer[]) const noexcept;
 
     int
-    bpt_destroy(pmem::obj::pool_base &pop);
+    destroy(pmem::obj::pool_base &pop);
 
     void
-    bpt_print() const noexcept;
+    print() const noexcept;
 
     void
-    bpt_print_leaves() const noexcept;
+    print_leaves() const noexcept;
     
     int
-    bpt_range_test(const std::string &start, long n) const noexcept;
+    range_test(const std::string &start, long n) const noexcept;
 };
 #endif
-
