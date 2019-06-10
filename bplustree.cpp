@@ -10,6 +10,7 @@
 #include "common.hpp"
 
 using pmem::obj::transaction;
+using namespace BPlusTreeObjPP;
 
 BPlusTree::BPlusTree(pmem::obj::pool_base &pop)
 {
