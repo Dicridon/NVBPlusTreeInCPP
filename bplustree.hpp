@@ -1,18 +1,17 @@
-
-#ifndef __FROST_BPTREE_OBJPP__
-#define __FROST_BPTREE_OBJPP__
+#ifndef __FROST_BPTREE__
+#define __FROST_BPTREE__
 /*
   This code is adopted from a C version, further modification may be required
 */
 #include <iostream>
 #include "common.hpp"
+#include "list.hpp"
 #include <string>
 
 
 #define DEGREE (5)
 
-namespace BPlusTreeObjPP {
-
+namespace NVMBPlusTree {
     enum bpt_node_type {
         NON_LEAF,
         LEAF
@@ -85,29 +84,29 @@ namespace BPlusTreeObjPP {
     private:
         // insertion helpers
         PBPTLeafPtr
-        new_leaf(pmem::obj::pool_base &pop);
+        bpt_new_leaf(pmem::obj::pool_base &pop);
 
         PBPTNonLeafPtr
-        new_non_leaf(pmem::obj::pool_base &pop);
+        bpt_new_non_leaf(pmem::obj::pool_base &pop);
 
         void
-        insert_child(PBPTNonLeafPtr old, PBPTNodePtr neo);
+        bpt_insert_child(PBPTNonLeafPtr old, PBPTNodePtr neo);
 
         int
-        complex_insert(pmem::obj::pool_base &pop,
-                       PBPTLeafPtr leaf,
-                       const std::string &key,
-                       const std::string &value);
+        bpt_complex_insert(pmem::obj::pool_base &pop,
+                           PBPTLeafPtr leaf,
+                           const std::string &key,
+                           const std::string &value);
 
         int
-        simple_insert(pmem::obj::pool_base &pop,
-                      PBPTLeafPtr leaf,
-                      const std::string &key,
-                      const std::string &value);
+        bpt_simple_insert(pmem::obj::pool_base &pop,
+                          PBPTLeafPtr leaf,
+                          const std::string &key,
+                          const std::string &value);
 
         int
-        insert_adjust(pmem::obj::pool_base &pop,
-                      PBPTNodePtr old, PBPTNodePtr neo);
+        bpt_insert_adjust(pmem::obj::pool_base &pop,
+                          PBPTNodePtr old, PBPTNodePtr neo);
 
         PBPTLeafPtr
         find_leaf(const std::string &key) const noexcept;
@@ -117,13 +116,13 @@ namespace BPlusTreeObjPP {
 
         // deletion helpers
         inline bool
-        is_root(const PBPTNodePtr t) const;
+        bpt_is_root(const PBPTNodePtr t) const;
 
         int
-        insert_key(PBPTNodePtr t, PStringPtr key);
+        bpt_insert_key(PBPTNodePtr t, PStringPtr key);
 
         PBPTNodePtr
-        check_redistribute(const PBPTNodePtr t) const noexcept;
+        bpt_check_redistribute(const PBPTNodePtr t) const noexcept;
 
         int
         redistribute_leaf(pmem::obj::pool_base &pop,
@@ -149,22 +148,22 @@ namespace BPlusTreeObjPP {
               PStringPtr split_key);
     
         int
-        remove_key_and_data(pmem::obj::pool_base &pop,
-                            PBPTLeafPtr node, const std::string &key);
+        bpt_remove_key_and_data(pmem::obj::pool_base &pop,
+                                PBPTLeafPtr node, const std::string &key);
     
         int
-        complex_delete(pmem::obj::pool_base &pop,
-                       PBPTLeafPtr leaf, const std::string &key);
+        bpt_complex_delete(pmem::obj::pool_base &pop,
+                           PBPTLeafPtr leaf, const std::string &key);
     
         int
-        simple_delete(pmem::obj::pool_base &pop,
-                      PBPTLeafPtr leaf, const std::string &key);
+        bpt_simple_delete(pmem::obj::pool_base &pop,
+                          PBPTLeafPtr leaf, const std::string &key);
     
         void
-        free_leaf(pmem::obj::pool_base &pop, PBPTLeafPtr leaf);
+        bpt_free_leaf(pmem::obj::pool_base &pop, PBPTLeafPtr leaf);
     
         void
-        free_non_leaf(pmem::obj::pool_base &pop, PBPTNonLeafPtr nleaf);
+        bpt_free_non_leaf(pmem::obj::pool_base &pop, PBPTNonLeafPtr nleaf);
     
     public:
         BPlusTree(pmem::obj::pool_base &pop);
@@ -180,13 +179,13 @@ namespace BPlusTreeObjPP {
 
         int
         insert(pmem::obj::pool_base &pop,
-               const std::string &key, const std::string &value) noexcept;
+                   const std::string &key, const std::string &value) noexcept;
 
         int
-        delete_key(pmem::obj::pool_base &pop, const std::string &key);
+        remove(pmem::obj::pool_base &pop, const std::string &key);
 
         int
-        get_value(const std::string &key, std::string &buffer)const noexcept;
+        get(const std::string &key, std::string &buffer)const noexcept;
 
         int
         range(const std::string &start,
@@ -207,3 +206,4 @@ namespace BPlusTreeObjPP {
     };
 }
 #endif
+
