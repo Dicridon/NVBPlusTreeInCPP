@@ -6,7 +6,7 @@
 - This is a practice for me to get familiar with C++ and C++ 11.
 
 ## Hints
-- libpmemobj++ offers persistent smart pointers utility, thus we have to distinguish resources and references of resource carefully.
+- libpmemobj++ offers persistent smart pointers utility, thus we have to distinguish resources and references to resource carefully.
 
 - The life cycle of object pointed by persistent pointers may exceed that of the running program, so we have to manage resource allocation and deallocation mannually.
 
